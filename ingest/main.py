@@ -2,6 +2,7 @@ import send_email
 import llm
 import parse
 import pdf
+from common import logger
 
 import urllib
 import boto3
@@ -12,12 +13,11 @@ from types import SimpleNamespace
 import base64
 import mailparser
 import traceback
-import logger
 import dotenv
 
 dotenv.load_dotenv()
 
-log = logger.logger(__name__)
+log = logger(__name__)
 
 
 class SQSListener:

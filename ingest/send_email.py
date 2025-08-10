@@ -1,4 +1,4 @@
-import logger
+from common import logger
 
 import boto3
 import markdown
@@ -7,7 +7,7 @@ import dotenv
 
 dotenv.load_dotenv()
 
-log = logger.logger(__name__)
+log = logger(__name__)
 
 ses_client = boto3.client("ses")
 

@@ -1,10 +1,10 @@
-import logger
+from common import logger
 
 import json
 from textractor import Textractor
 from textractor.data.constants import TextractFeatures
 
-log = logger.logger(__name__)
+log = logger(__name__)
 
 
 def textract(content):

@@ -1,4 +1,4 @@
-import logger
+from common import logger
 
 from langchain_aws import ChatBedrock
 from ratelimit import limits
@@ -6,7 +6,7 @@ import dotenv
 
 dotenv.load_dotenv()
 
-log = logger.logger(__name__)
+log = logger(__name__)
 
 MODEL_CLAUDE_4_SONNET = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
 from langchain_core.messages import HumanMessage, SystemMessage
