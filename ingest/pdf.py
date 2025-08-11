@@ -23,7 +23,6 @@ def textract(content):
         save_image=False,
         features=[
             TextractFeatures.TABLES,
-            TextractFeatures.FORMS,
             TextractFeatures.LAYOUT,
         ],
     )
