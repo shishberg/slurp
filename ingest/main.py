@@ -2,6 +2,7 @@ import send_email
 import llm
 import parse
 import pdf
+import kb
 from common import logger
 
 import urllib
@@ -42,7 +43,12 @@ class SQSListener:
                 contents.append(content)
                 links.append(url)
 
-        summary = llm.summarise("\n---\n".join(contents))
+        full_content = "\n---\n".join(contents)
+
+        # Upload to S3
+        kb.upload_to_s3(mail.subject, full_content)
+
+        summary = llm.summarise(full_content)
         if links:
             summary += "\n---\n"
             summary += "\n\n".join(links)
