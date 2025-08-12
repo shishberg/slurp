@@ -22,7 +22,7 @@ def textract(content: bytes) -> str:
         s3_upload_path=f"s3://{os.getenv('TEXTRACT_S3_BUCKET')}/",
         save_image=False,
         features=[
-            TextractFeatures.TABLES,
+            #TextractFeatures.TABLES,
             TextractFeatures.LAYOUT,
         ],
     )
