@@ -104,7 +104,7 @@ def maybe_fetch_url(url):
     content_type = res.getheader("Content-Type", "not sent").split(";")[0].strip()
     if content_type == ("application/pdf"):
         return pdf.textract(content)
-    print(f"Skipping URL {url} with content type {content_type}")
+    log.info(f"Skipping URL {url} with content type {content_type}")
 
 
 def should_fetch_url(url):

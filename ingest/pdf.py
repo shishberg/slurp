@@ -11,7 +11,7 @@ dotenv.load_dotenv()
 log = logger(__name__)
 
 
-def textract(content):
+def textract(content: bytes) -> str:
     """Extract PDF content and convert to markdown using Amazon Textract."""
     # AWS credentials will be loaded from environment variables
     extractor = Textractor()
