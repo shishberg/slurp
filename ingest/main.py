@@ -52,11 +52,18 @@ class SQSListener:
         if links:
             summary += "\n---\n"
             summary += "\n\n".join(links)
+
+        # Extract original message ID for reply threading
+        original_message_id = None
+        if hasattr(mail, "message_id") and mail.message_id:
+            original_message_id = mail.message_id
+
         send_email.send_email(
             sender=os.getenv("EMAIL_SENDER"),
             recipient=os.getenv("EMAIL_RECIPIENT"),
             subject=f"Re: {mail.subject}",
             body=summary,
+            original_message_id=original_message_id,
         )
         return True
 
