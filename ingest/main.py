@@ -32,6 +32,11 @@ class SQSListener:
         msg = json.loads(body.Message, object_hook=lambda d: SimpleNamespace(**d))
         content = base64.b64decode(msg.content)
         mail = mailparser.parse_from_bytes(content)
+
+        # Extract original message ID for reply threading
+        original_message_id = get_original_message_id(mail)
+        log.info(f"Original message ID: {original_message_id}")
+
         parser = parse.EmailHTMLParser()
         for html in mail.text_html:
             parser.feed(html)
@@ -52,11 +57,6 @@ class SQSListener:
         if links:
             summary += "\n---\n"
             summary += "\n\n".join(links)
-
-        # Extract original message ID for reply threading
-        original_message_id = None
-        if hasattr(mail, "message_id") and mail.message_id:
-            original_message_id = mail.message_id
 
         send_email.send_email(
             sender=os.getenv("EMAIL_SENDER"),
@@ -92,6 +92,19 @@ class SQSListener:
                 stacktrace = traceback.format_exc()
                 log.error(stacktrace)
                 time.sleep(5)
+
+
+def get_original_message_id(mail):
+    # Case-insensitive lookup for x-forwarded-message-id header
+    original_message_id = None
+    for name, val in mail.headers.items():
+        if name.lower() == "x-forwarded-message-id":
+            return val
+
+    if mail.message_id:
+        return mail.message_id
+
+    return None
 
 
 def maybe_fetch_url(url):

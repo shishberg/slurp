@@ -5,6 +5,9 @@ import markdown
 from botocore.exceptions import ClientError
 import dotenv
 
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 dotenv.load_dotenv()
 
 log = logger(__name__)
@@ -17,22 +20,24 @@ def send_email(sender, recipient, subject, body, original_message_id=None):
     log.info(body)
     html_content = markdown.markdown(body)
 
-    message = {
-        "Subject": {"Data": subject, "Charset": "UTF-8"},
-        "Body": {"Html": {"Data": html_content, "Charset": "UTF-8"}},
-    }
+    msg = MIMEMultipart("alternative")
+    msg["From"] = sender
+    msg["To"] = recipient
+    msg["Subject"] = subject
 
     # Add reply headers if original message ID is provided
     if original_message_id:
-        message["Headers"] = [
-            {"Name": "In-Reply-To", "Value": original_message_id},
-            {"Name": "References", "Value": original_message_id},
-        ]
+        msg["In-Reply-To"] = original_message_id
+        msg["References"] = original_message_id
 
-    response = ses_client.send_email(
-        Source=sender,
-        Destination={"ToAddresses": [recipient]},
-        Message=message,
+    # Add the HTML content
+    html_part = MIMEText(html_content, "html", "utf-8")
+    msg.attach(html_part)
+
+    # Send the raw email
+    response = ses_client.send_raw_email(
+        Source=sender, Destinations=[recipient], RawMessage={"Data": msg.as_string()}
     )
+
     log.info(f"Email sent! Message ID: {response['MessageId']}")
     return response
