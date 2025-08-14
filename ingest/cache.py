@@ -5,7 +5,7 @@ Local disk cache for expensive operations like PDF text extraction.
 import hashlib
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Callable
 
 from common import logger
 
@@ -33,52 +33,45 @@ class DiskCache:
         """Get the full path for a cache key."""
         return self.cache_dir / f"{key}.bin"
 
-    def get(self, key_hash: bytes) -> Optional[bytes]:
+    def get(self, key: bytes, fetch: Callable[[], bytes]) -> bytes:
         """
-        Retrieve cached result for given content.
+        Retrieve cached result for given content, or compute and cache it on miss.
 
         Args:
-            content: The content bytes to check cache for
+            key: The content bytes to check cache for
+            fetch: Function to call when cache miss occurs, should return bytes
 
         Returns:
-            Cached result as bytes if found, None otherwise
+            Cached or newly computed result as bytes
         """
-        key_hash = self._key_hash(key_hash)
+        key_hash = self._key_hash(key)
         cache_path = self._cache_path(key_hash)
 
         if cache_path.exists():
             try:
                 with open(cache_path, "rb") as f:
                     result = f.read()
-                log.info(f"Cache hit for key {key_hash[:8]}...")
+                log.info(f"Cache hit for hash {key_hash[:8]}...")
                 return result
             except Exception as e:
-                log.warning(f"Failed to load cache for key {key_hash[:8]}...: {e}")
+                log.warning(f"Failed to load cache for hash {key_hash[:8]}...: {e}")
                 # Remove corrupted cache file
                 cache_path.unlink(missing_ok=True)
 
-        log.info(f"Cache miss for key {key_hash[:8]}...")
-        return None
+        log.info(f"Cache miss for hash {key_hash[:8]}...")
 
-    def set(self, key: bytes, content: bytes) -> None:
-        """
-        Store result in cache for given content.
-
-        Args:
-            content: The content bytes to cache result for
-            result: The bytes result to cache
-        """
-        key_hash = self._key_hash(key)
-        cache_path = self._cache_path(key_hash)
-
+        # Compute result and cache it
+        result = fetch()
         try:
             with open(cache_path, "wb") as f:
-                f.write(content)
-            log.info(f"Cached result for key {key_hash[:8]}...")
+                f.write(result)
+            log.info(f"Cached result for hash {key_hash[:8]}...")
         except Exception as e:
-            log.warning(f"Failed to cache result for key {key_hash[:8]}...: {e}")
+            log.warning(f"Failed to cache result for hash {key_hash[:8]}...: {e}")
             # Clean up any existing cache file on failure
             cache_path.unlink(missing_ok=True)
+
+        return result
 
     def clear(self) -> None:
         """Clear all cached files."""

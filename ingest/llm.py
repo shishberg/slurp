@@ -60,20 +60,16 @@ def _invoke_llm(messages):
 
 def summarise(text):
     """Summarise text with caching and rate limiting only for fresh calls."""
-    # Check cache first
     text_bytes = text.encode("utf-8")
-    cached_result = _cache.get(text_bytes)
-    if cached_result is not None:
-        return cached_result.decode("utf-8")
 
-    # Fresh invocation - rate limit applies only here
-    messages = [
-        SystemMessage(PROMPT),
-        HumanMessage(text),
-    ]
-    result = _invoke_llm(messages)
+    def fetch_summary():
+        """Compute the summary on cache miss."""
+        messages = [
+            SystemMessage(PROMPT),
+            HumanMessage(text),
+        ]
+        return _invoke_llm(messages).encode("utf-8")
 
-    # Cache the result
-    _cache.set(text_bytes, result.encode("utf-8"))
-
-    return result
+    # Get cached result or compute and cache new result
+    result = _cache.get(text_bytes, fetch_summary)
+    return result.decode("utf-8")
