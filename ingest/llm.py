@@ -1,4 +1,5 @@
 from common import logger
+from cache import DiskCache
 
 from langchain_aws import ChatBedrock
 from ratelimit import limits
@@ -46,13 +47,33 @@ _[Date]_
 - ...
 """
 
+_cache = DiskCache(cache_dir=".cache/llm_summaries")
 
+
+# Rate-limited wrapper for the actual LLM invocation
 @limits(calls=10, period=60 * 60 * 24)
+def _invoke_llm(messages):
+    """Rate-limited wrapper for LLM invocation."""
+    output = llm.invoke(messages)
+    return output.text()
+
+
 def summarise(text):
-    # TODO: cache responses
+    """Summarise text with caching and rate limiting only for fresh calls."""
+    # Check cache first
+    text_bytes = text.encode("utf-8")
+    cached_result = _cache.get(text_bytes)
+    if cached_result is not None:
+        return cached_result.decode("utf-8")
+
+    # Fresh invocation - rate limit applies only here
     messages = [
         SystemMessage(PROMPT),
         HumanMessage(text),
     ]
-    output = llm.invoke(messages)
-    return output.text()
+    result = _invoke_llm(messages)
+
+    # Cache the result
+    _cache.set(text_bytes, result.encode("utf-8"))
+
+    return result
