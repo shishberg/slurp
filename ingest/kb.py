@@ -1,11 +1,21 @@
 import os
-import time
 import boto3
 import re
 from datetime import datetime, timezone
 from common import logger
+from pinecone import Pinecone
+from langchain_core.documents import Document
+from langchain_text_splitters import (
+    MarkdownTextSplitter,
+    ExperimentalMarkdownSyntaxTextSplitter,
+)
 
 log = logger(__name__)
+
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+PINECONE_NAMESPACE = os.getenv("PINECONE_NAMESPACE", "slurp")
+pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
+index = pc.Index(os.getenv("PINECONE_INDEX"))
 
 
 def sanitize_filename(subject: str) -> str:
@@ -39,9 +49,51 @@ def upload_to_s3(subject: str, content: str) -> str:
             ContentType="text/markdown",
         )
 
-        log.info(f"Successfully uploaded {filename} to s3://{bucket_name}")
+        log.info(f"Uploaded {filename} to s3://{bucket_name}")
         return filename
 
     except Exception as e:
         log.error(f"Failed to upload {filename} to S3: {e}")
         return False
+
+
+def chunk_markdown(md: str) -> list[Document]:
+    """Split text into chunks of specified size."""
+    # splitter = ExperimentalMarkdownSyntaxTextSplitter()
+    splitter = MarkdownTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=100,
+    )
+    # return splitter.split_text(md)
+    return splitter.create_documents(
+        [md],
+    )
+
+
+def upload_to_pinecone(filename: str, md: str, metadata: dict[str, str] = None):
+    """Upload markdown content to Pinecone index."""
+    if metadata is None:
+        metadata = {}
+    fileID = sanitize_filename(filename)
+
+    chunks = chunk_markdown(md)
+
+    records = [
+        {
+            "_id": f"{fileID}#{i}",
+            "text": chunk.page_content,
+        }
+        | chunk.metadata
+        | metadata
+        for i, chunk in enumerate(chunks)
+    ]
+
+    index.upsert_records(PINECONE_NAMESPACE, records)
+    log.info(f"Uploaded {len(records)} records to Pinecone index")
+
+
+if __name__ == "__main__":
+    content = open(
+        "experiments/Fwd_SPPS_School_newsletter_20250814_131209.md", "r"
+    ).read()
+    upload_to_pinecone("filename", content, metadata={"source": "test_email"})

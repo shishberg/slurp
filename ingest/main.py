@@ -71,7 +71,7 @@ class SQSListener:
         # Conditional S3 upload based on 'forget' label
         if "forget" not in labels:
             kb.upload_to_s3(mail.subject, full_content)
-            log.info("Uploaded to S3")
+            kb.upload_to_pinecone(mail.subject, full_content)
 
         # Conditional summary creation and email reply based on 'summary' label
         if "summary" in labels:
@@ -170,4 +170,7 @@ if __name__ == "__main__":
     listener = SQSListener(os.getenv("SQS_QUEUE_URL"), region_name="ap-southeast-2")
 
     # Start listening
-    listener.listen()
+    try:
+        listener.listen()
+    except KeyboardInterrupt:
+        log.info("Shutting down listener")
