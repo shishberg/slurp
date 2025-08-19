@@ -1,3 +1,69 @@
+import sys
+import os
+
+# Add the parent directory to the path so we can import from ingest
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from main import extract_email_labels
+
+
+class TestEmailLabelExtraction:
+    """Test cases for email label extraction functionality."""
+
+    def test_extract_single_label(self):
+        """Test extraction of a single label."""
+        assert extract_email_labels("user+summary@example.com") == ["summary"]
+
+    def test_extract_multiple_labels(self):
+        """Test extraction of multiple labels."""
+        assert extract_email_labels("user+summary+forget@example.com") == [
+            "summary",
+            "forget",
+        ]
+
+    def test_extract_labels_with_mixed_case(self):
+        """Test extraction handles case insensitivity."""
+        assert extract_email_labels("user+Summary+FORGET@example.com") == [
+            "summary",
+            "forget",
+        ]
+
+    def test_extract_labels_with_spaces(self):
+        """Test extraction handles spaces around labels."""
+        assert extract_email_labels("user+ summary + forget @example.com") == [
+            "summary",
+            "forget",
+        ]
+
+    def test_no_labels(self):
+        """Test extraction when no labels are present."""
+        assert extract_email_labels("user@example.com") == []
+
+    def test_empty_labels(self):
+        """Test extraction with empty labels."""
+        assert extract_email_labels("user++@example.com") == []
+
+    def test_malformed_email(self):
+        """Test extraction with malformed email addresses."""
+        assert extract_email_labels("invalid-email") == []
+        assert extract_email_labels("") == []
+        assert extract_email_labels(None) == []
+
+    def test_complex_labels(self):
+        """Test extraction with complex label names."""
+        assert extract_email_labels("user+test-label+another_label@example.com") == [
+            "test-label",
+            "another_label",
+        ]
+
+    def test_special_characters_in_labels(self):
+        """Test extraction handles special characters in labels."""
+        assert extract_email_labels("user+test123+label-with-dashes@example.com") == [
+            "test123",
+            "label-with-dashes",
+        ]
+
+
 import unittest
 import sys
 import os

@@ -21,6 +21,13 @@ dotenv.load_dotenv()
 log = logger(__name__)
 
 
+def extract_email_labels(email_address):
+    """Extract labels from email address in format user+label1+label2@example.com"""
+    local_part = email_address.split("@")[0]
+    labels = local_part.split("+")[1:]  # Skip the username part
+    return [label.strip().lower() for label in labels if label.strip()]
+
+
 class SQSListener:
     def __init__(self, queue_url, region_name):
         self.queue_url = queue_url
@@ -37,6 +44,17 @@ class SQSListener:
         original_message_id = get_original_message_id(mail)
         log.info(f"Original message ID: {original_message_id}")
 
+        # Extract labels from recipient email address
+        recipient_email = None
+        for recipient in mail.to:
+            _, email_address = recipient
+            if email_address and "@" in email_address:
+                recipient_email = email_address
+                break
+
+        labels = extract_email_labels(recipient_email) if recipient_email else []
+        log.info(f"Labels: {labels}")
+
         parser = parse.EmailHTMLParser()
         for html in mail.text_html:
             parser.feed(html)
@@ -50,21 +68,27 @@ class SQSListener:
 
         full_content = "\n---\n".join(contents)
 
-        # Upload to S3
-        kb.upload_to_s3(mail.subject, full_content)
+        # Conditional S3 upload based on 'forget' label
+        if "forget" not in labels:
+            kb.upload_to_s3(mail.subject, full_content)
+            log.info("Uploaded to S3")
 
-        summary = llm.summarise(full_content)
-        if links:
-            summary += "\n---\n"
-            summary += "\n\n".join(links)
+        # Conditional summary creation and email reply based on 'summary' label
+        if "summary" in labels:
+            summary = llm.summarise(full_content)
+            if links:
+                summary += "\n---\n"
+                summary += "\n\n".join(links)
 
-        send_email.send_email(
-            sender=os.getenv("EMAIL_SENDER"),
-            recipient=os.getenv("EMAIL_RECIPIENT"),
-            subject=f"Re: {mail.subject}",
-            body=summary,
-            original_message_id=original_message_id,
-        )
+            send_email.send_email(
+                sender=os.getenv("EMAIL_SENDER"),
+                recipient=os.getenv("EMAIL_RECIPIENT"),
+                subject=f"Re: {mail.subject}",
+                body=summary,
+                original_message_id=original_message_id,
+            )
+            log.info("Sent summary email")
+
         return True
 
     def listen(self):
