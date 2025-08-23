@@ -37,13 +37,8 @@ PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_NAMESPACE = os.getenv("PINECONE_NAMESPACE", "slurp")
 PINECONE_INDEX = os.getenv("PINECONE_INDEX")
 
-# pc = Pinecone(api_key=PINECONE_API_KEY)
-
 embeddings = PineconeEmbeddings(
     model="llama-text-embed-v2",
-    # api_key=PINECONE_API_KEY,
-    # index_name=PINECONE_INDEX,
-    # namespace=PINECONE_NAMESPACE,
 )
 
 # Create Pinecone vector store and retriever
@@ -58,8 +53,7 @@ pc = Pinecone(api_key=PINECONE_API_KEY)
 index = pc.Index(PINECONE_INDEX)
 
 
-# Custom retriever function that works
-def custom_retriever(query: str, k: int = 5):
+def pinecone_retriever(query: str, k: int = 5):
     """Custom retriever that bypasses broken LangChain conversion"""
     query_embedding = embeddings.embed_query(query)
 
@@ -81,11 +75,6 @@ def custom_retriever(query: str, k: int = 5):
 
     logger.info(f"Custom retriever found {len(documents)} documents")
     return documents
-
-
-# Test the custom retriever
-test_docs = custom_retriever("assembly")
-print(f"Retriever test: {len(test_docs)} documents found")
 
 
 def get_datetime(_):
@@ -142,7 +131,7 @@ Examples of good titles:
         chain = (
             RunnableParallel(
                 {
-                    "context": RunnableLambda(lambda q: custom_retriever(q)),
+                    "context": RunnableLambda(lambda q: pinecone_retriever(q)),
                     "question": RunnablePassthrough(),
                     "current_datetime": RunnableLambda(get_datetime),
                     "conversation_history": RunnableLambda(
