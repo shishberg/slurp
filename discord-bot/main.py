@@ -1,8 +1,10 @@
+import chat
+
 import discord
 import dotenv
 import logging
 import os
-import chat
+import re
 
 discord.utils.setup_logging(level=logging.INFO, root=True)
 logger = logging.getLogger(__name__)
@@ -62,8 +64,8 @@ async def on_message(message):
         # Send placeholder message
         placeholder = await thread.send("Thinking...")
 
-        # Get response with title
-        response = await chat.invoke(message.content)
+        msg = re.sub(r"<[^>]*>", "", message.content).strip()
+        response = await chat.invoke(msg)
 
         # Update thread title and message content
         await thread.edit(name=response["title"])

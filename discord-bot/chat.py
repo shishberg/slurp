@@ -1,8 +1,8 @@
 from langchain_aws import ChatBedrock
-from langchain_aws.retrievers import AmazonKnowledgeBasesRetriever
 from langchain.chains import RetrievalQA
 import asyncio
 import logging
+import os
 from langchain_core.runnables import (
     RunnableParallel,
     RunnablePassthrough,
@@ -10,8 +10,14 @@ from langchain_core.runnables import (
 )
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.documents import Document
 from datetime import datetime
 from botocore.exceptions import ClientError
+from pinecone import Pinecone
+from langchain_pinecone import PineconeVectorStore, PineconeEmbeddings
+import dotenv
+
+dotenv.load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -26,15 +32,60 @@ llm = ChatBedrock(
     region_name=REGION,
 )
 
-kb = AmazonKnowledgeBasesRetriever(
-    knowledge_base_id="ROWFWHJMAF",
-    region_name=REGION,
-    retrieval_config={
-        "vectorSearchConfiguration": {
-            "numberOfResults": 4,
-        },
-    },
+# Initialize Pinecone
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+PINECONE_NAMESPACE = os.getenv("PINECONE_NAMESPACE", "slurp")
+PINECONE_INDEX = os.getenv("PINECONE_INDEX")
+
+# pc = Pinecone(api_key=PINECONE_API_KEY)
+
+embeddings = PineconeEmbeddings(
+    model="llama-text-embed-v2",
+    # api_key=PINECONE_API_KEY,
+    # index_name=PINECONE_INDEX,
+    # namespace=PINECONE_NAMESPACE,
 )
+
+# Create Pinecone vector store and retriever
+vectorstore = PineconeVectorStore.from_existing_index(
+    index_name=PINECONE_INDEX,
+    embedding=embeddings,
+    namespace=PINECONE_NAMESPACE,
+    text_key="text",
+)
+
+pc = Pinecone(api_key=PINECONE_API_KEY)
+index = pc.Index(PINECONE_INDEX)
+
+
+# Custom retriever function that works
+def custom_retriever(query: str, k: int = 5):
+    """Custom retriever that bypasses broken LangChain conversion"""
+    query_embedding = embeddings.embed_query(query)
+
+    raw_results = index.query(
+        vector=query_embedding,
+        top_k=k,
+        include_metadata=True,
+        namespace=PINECONE_NAMESPACE,
+    )
+
+    documents = []
+    for match in raw_results.matches:
+        if match.metadata and "text" in match.metadata:
+            doc = Document(
+                page_content=match.metadata["text"],
+                metadata={k: v for k, v in match.metadata.items() if k != "text"},
+            )
+            documents.append(doc)
+
+    logger.info(f"Custom retriever found {len(documents)} documents")
+    return documents
+
+
+# Test the custom retriever
+test_docs = custom_retriever("assembly")
+print(f"Retriever test: {len(test_docs)} documents found")
 
 
 def get_datetime(_):
@@ -91,7 +142,7 @@ Examples of good titles:
         chain = (
             RunnableParallel(
                 {
-                    "context": kb,
+                    "context": RunnableLambda(lambda q: custom_retriever(q)),
                     "question": RunnablePassthrough(),
                     "current_datetime": RunnableLambda(get_datetime),
                     "conversation_history": RunnableLambda(
