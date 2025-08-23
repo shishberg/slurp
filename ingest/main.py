@@ -1,6 +1,6 @@
 import send_email
 import llm
-import parse
+import parse_email
 import pdf
 import kb
 from common import logger
@@ -55,7 +55,7 @@ class SQSListener:
         labels = extract_email_labels(recipient_email) if recipient_email else []
         log.info(f"Labels: {labels}")
 
-        parser = parse.EmailHTMLParser()
+        parser = parse_email.EmailHTMLParser()
         for html in mail.text_html:
             parser.feed(html)
         contents = parser.markdown
