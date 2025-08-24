@@ -1,91 +1,213 @@
+from dataclasses import dataclass
+from io import BytesIO
 from common import logger
 
-from dataclasses import dataclass
+import os
+from typing import Generator, List
 from html.parser import HTMLParser
-import mailparser
 from markdownify import markdownify
+from email.message import EmailMessage
+from email.parser import Parser
+from email.utils import parseaddr
+from email import policy
 import urllib
 import pdf
 
 log = logger(__name__)
 
+email_parser = Parser(policy=policy.default)
+
+
+class Email:
+    parts: List[EmailMessage]
+
+    def __init__(self):
+        self.parts = []
+
+    def original_message_id(self) -> str:
+        for part in self.parts:
+            message_id = part.get("x-forwarded-message-id")
+            if message_id:
+                return message_id
+            message_id = part.get("message-id")
+            if message_id:
+                return message_id
+        return None
+
+    def subject(self) -> str:
+        return self.get_first("subject")
+
+    def from_(self) -> str:
+        return self.get_first("from")
+
+    def to(self) -> List[str]:
+        return list(self.get_all("to"))
+
+    def get_first(self, header: str) -> str:
+        """Get the first occurrence of a header from the email parts."""
+        for part in self.parts:
+            value = part.get(header)
+            if value:
+                return value
+        return None
+
+    def get_all(self, header: str) -> Generator[str, None, None]:
+        """Get all occurrences of a header from the email parts."""
+        for part in self.parts:
+            values = part.get_all(header, [])
+            if values:
+                yield from values
+
+    def html_parts(self) -> Generator[str, None, None]:
+        yield from (
+            part.get_content()
+            for part in self.parts
+            if part.get_content_type().endswith("/html")
+        )
+
+    def content_type_parts(self, content_type: str) -> Generator[str, None, None]:
+        yield from (
+            part.get_content()
+            for part in self.parts
+            if part.get_content_type().lower() == content_type
+        )
+
+    def __repr__(self):
+        s = f"Email(parts={len(self.parts)})\n"
+        s += f"  Original Message ID: {self.original_message_id()}\n"
+        s += f"  Subject: {self.subject()}\n"
+        s += f"  From: {self.from_()}\n"
+        s += f"  To: {', '.join(self.to())}\n"
+        html_content = "\n---\n".join(self.html_parts())
+        stripped_html = html_content.replace("\n", "")
+        s += f"  HTML Content: {len(html_content)} {stripped_html[:100]}...\n"
+        for part in self.parts:
+            try:
+                content_length = len(part.get_content())
+            except:
+                content_length = 0
+            subject = part.get("subject", "No Subject")
+            s += f"  - {subject} - {part.get_content_type()} ({content_length} bytes)\n"
+        return s
+
+
+def _walk_email(mail: EmailMessage) -> Generator[Email, None, None]:
+    root_email = Email()
+    root_email.parts.append(mail)
+
+    for part in mail.iter_parts():
+        if part.is_multipart():
+            yield from _walk_email(part)
+            continue
+
+        root_email.parts.append(part)
+
+    yield root_email
+
 
 @dataclass
-class Email:
+class EmailPart:
     subject: str
     content: str
+    links: List[str]
+
+
+class EmailContents:
     original_message_id: str
-    labels: list[str]
-    links: list[str]
+    labels: List[str]
+    parts: List[EmailPart]
+
+    def __init__(self):
+        self.parts = []
 
 
-def parse_email(content: str) -> Email:
-    mail = mailparser.parse_from_bytes(content)
+def parse(content: str) -> EmailContents:
+    mail = email_parser.parsestr(content)
+
+    result = EmailContents()
 
     # Extract original message ID for reply threading
-    original_message_id = get_original_message_id(mail)
-    log.info(f"Original message ID: {original_message_id}")
+    result.original_message_id = get_original_message_id(mail)
+    result.labels = list(recipient_labels(mail))
+    log.info(f"Processing email with original message ID: {result.original_message_id}")
+    log.info(f"Labels: {', '.join(result.labels)}")
 
-    # Extract labels from recipient email address
-    recipient_email = None
-    for recipient in mail.to:
-        _, email_address = recipient
-        if email_address and "@" in email_address:
-            recipient_email = email_address
-            break
+    for part in _walk_email(mail):
+        if part.from_() == os.getenv("EMAIL_SENDER"):
+            # Avoid infinite loop
+            # TODO: better parsing of EMAIL_SENDER
+            log.info("Skipping email from sender address")
+            continue
 
-    labels = email_address_labels(recipient_email) if recipient_email else []
-    log.info(f"Labels: {labels}")
+        contents = []
+        links = []
 
-    parser = parse_email.EmailHTMLParser()
-    for html in mail.text_html:
-        parser.feed(html)
-    contents = parser.markdown
-    links = []
-    for url in parser.urls:
-        content = maybe_fetch_url(url)
-        if content:
-            contents.append(content)
-            links.append(url)
+        headers = ""
+        want_headers = {
+            "from",
+            "to",
+            "cc",
+            "bcc",
+            "subject",
+            "date",
+            "message-id",
+            "x-forwarded-message-id",
+        }
+        for key in want_headers:
+            value = part.get_all(key)
+            if value:
+                for val in value:
+                    headers += f"{key.title()}: {val}\n"
+        contents.append(headers)
 
-    full_content = "\n---\n".join(contents)
-    return Email(
-        subject=mail.subject,
-        content=full_content,
-        original_message_id=original_message_id,
-        labels=labels,
-        links=links,
-    )
+        for html_content in part.html_parts():
+            html_content = html_content.strip()
+            if len(html_content) == 0:
+                continue
+            markdown, urls = parse_html(html_content)
+            if len(markdown) == 0:
+                continue
+            contents.append(markdown)
+            links.extend(u for u in urls if should_fetch_url(u))
+
+        # TODO: change this and fetch_url into handlers
+        # mapped from content type
+        for pdf_content in part.content_type_parts("application/pdf"):
+            markdown = pdf.textract(pdf_content)
+            contents.append(markdown)
+
+        for url in links:
+            content = fetch_url(url)
+            if content:
+                contents.append(content)
+
+        if len(contents) == 1:  # headers only
+            continue
+
+        full_content = "\n---\n".join(contents)
+        result.parts.append(EmailPart(part.subject(), full_content, links))
+
+    return result
 
 
-def get_original_message_id(mail):
-    # Case-insensitive lookup for x-forwarded-message-id header
-    original_message_id = None
-    for name, val in mail.headers.items():
-        if name.lower() == "x-forwarded-message-id":
-            return val
-
-    if mail.message_id:
-        return mail.message_id
-
-    return None
+def get_original_message_id(mail: EmailMessage):
+    return mail.get("x-forwarded-message-id") or mail.get("message-id")
 
 
-def email_address_labels(email_address):
-    """Extract labels from email address in format user+label1+label2@example.com"""
-    local_part = email_address.split("@")[0]
-    labels = local_part.split("+")[1:]  # Skip the username part
-    return [label.strip().lower() for label in labels if label.strip()]
+def recipient_labels(mail: EmailMessage):
+    for recipient in mail.get_all("to"):
+        _, email_address = parseaddr(recipient)
+        local_part = email_address.split("@")[0]
+        labels = local_part.split("+")[1:]  # Skip the username part
+        yield from (label.strip().lower() for label in labels if label.strip())
 
 
-def maybe_fetch_url(url):
-    if not should_fetch_url(url):
-        return None
+def fetch_url(url):
     log.info(f"Fetching URL: {url}")
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:142.0) Gecko/20100101 Firefox/142.0"
         },
     )
     res = urllib.request.urlopen(req)
@@ -112,25 +234,30 @@ def should_fetch_url(url):
     return False
 
 
-def parse_html(content):
+def parse_html(content) -> tuple[str, list[str]]:
     """Parse HTML content and convert it to markdown."""
-    parser = EmailHTMLParser()
+    parser = LinkExtractor()
     parser.feed(content)
-    return parser.markdown, parser.urls
+    return markdownify(content, heading_style="ATX"), parser.urls
 
 
-class EmailHTMLParser(HTMLParser):
+class LinkExtractor(HTMLParser):
     def __init__(self):
         super().__init__()
-        self.markdown = []
         self.urls = []
-
-    def feed(self, content):
-        self.markdown.append(markdownify(content))
-        super().feed(content)
 
     def handle_starttag(self, tag, attrs):
         if tag == "a":
             for name, val in attrs:
                 if name == "href":
                     self.urls.append(val)
+
+
+if __name__ == "__main__":
+    with open("mail.example", "r") as f:
+        mail = parse(f.read())
+
+        log.info(f"Original message ID: {mail.original_message_id}")
+        log.info(f"Labels: {list(mail.labels)}")
+        for i, part in enumerate(mail.parts):
+            log.info(f"Part {i}:\n{part}")

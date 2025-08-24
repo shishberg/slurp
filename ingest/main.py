@@ -28,20 +28,30 @@ class SQSListener:
         body = json.loads(payload["Body"], object_hook=lambda d: SimpleNamespace(**d))
         msg = json.loads(body.Message, object_hook=lambda d: SimpleNamespace(**d))
         raw_email = base64.b64decode(msg.content)
-        mail = parse_email.parse_email(raw_email)
+        mail = parse_email.parse(raw_email.decode("utf-8"))
+
+        log.info(f"Original message ID: {mail.original_message_id}")
+        log.info(f"Labels: {mail.labels}")
 
         # Conditional S3 upload based on 'forget' label
         if "forget" not in mail.labels:
-            kb.upload_to_s3(mail.subject, mail.content)
-            kb.upload_to_pinecone(mail.subject, mail.content)
+            for part in mail.parts:
+                kb.upload_to_s3(part.subject, part.content)
+                kb.upload_to_pinecone(part.subject, part.content)
 
         # Conditional summary creation and email reply based on 'summary' label
         if "summary" in mail.labels:
-            summary = llm.summarise(mail.content)
-            if mail.links:
-                summary += "\n---\n"
-                summary += "\n\n".join(mail.links)
+            summaries = []
+            for part in mail.parts:
+                summary = llm.summarise(part.content)
+                if part.links:
+                    summary += "\n---\n"
+                    summary += "\n\n".join(part.links)
+                summaries.append(summary)
 
+            summary = "\n\n".join(summaries)
+
+            # TODO: reply to individual forwarded emails?
             send_email.send_email(
                 sender=os.getenv("EMAIL_SENDER"),
                 recipient=os.getenv("EMAIL_RECIPIENT"),
