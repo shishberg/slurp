@@ -1,5 +1,5 @@
 import chat
-from common import logger, log_handler
+from common import logger, log_formatter
 
 import discord
 import dotenv
@@ -82,4 +82,4 @@ async def on_message(message):
 
 
 if __name__ == "__main__":
-    client.run(os.getenv("DISCORD_TOKEN"), log_handler=log_handler)
+    client.run(os.getenv("DISCORD_TOKEN"), log_formatter=log_formatter)
