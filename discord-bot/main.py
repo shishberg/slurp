@@ -45,7 +45,16 @@ async def on_message(message):
             recent_messages = []
             async for msg in message.channel.history(limit=CONTEXT_MESSAGE_COUNT + 1):
                 if msg.id != message.id:  # Exclude the current message
-                    recent_messages.append(f"{msg.author}: {msg.content}")
+                    if msg.type in (
+                        discord.MessageType.default,
+                        discord.MessageType.reply,
+                    ):
+                        content = msg.clean_content
+                    elif msg.type == discord.MessageType.thread_starter_message:
+                        content = message.channel.starter_message.clean_content
+                    else:
+                        continue
+                    recent_messages.append(f"{msg.author}: {content}")
             recent_messages.reverse()  # Most recent last
 
             response = await chat.invoke(message.content, recent_messages)

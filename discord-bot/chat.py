@@ -56,7 +56,6 @@ index = pc.Index(PINECONE_INDEX)
 def pinecone_retriever(query: str, k: int = 5):
     """Custom retriever that bypasses broken LangChain conversion"""
     query_embedding = embeddings.embed_query(query)
-
     raw_results = index.query(
         vector=query_embedding,
         top_k=k,
@@ -73,7 +72,7 @@ def pinecone_retriever(query: str, k: int = 5):
             )
             documents.append(doc)
 
-    logger.info(f"Custom retriever found {len(documents)} documents")
+    logger.info(f"Retriever found {len(documents)} documents")
     return documents
 
 
