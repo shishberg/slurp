@@ -1,13 +1,12 @@
 import chat
+from common import logger, log_handler
 
 import discord
 import dotenv
-import logging
 import os
 import re
 
-discord.utils.setup_logging(level=logging.INFO, root=True)
-logger = logging.getLogger(__name__)
+log = logger(__name__)
 
 dotenv.load_dotenv()  # take environment variables
 
@@ -22,7 +21,7 @@ CONTEXT_MESSAGE_COUNT = 10
 
 @client.event
 async def on_ready():
-    logger.info(f"Logged in as {client.user}")
+    log.info(f"Logged in as {client.user}")
 
 
 @client.event
@@ -82,4 +81,5 @@ async def on_message(message):
         return
 
 
-client.run(os.getenv("DISCORD_TOKEN"), log_handler=None)
+if __name__ == "__main__":
+    client.run(os.getenv("DISCORD_TOKEN"), log_handler=log_handler)

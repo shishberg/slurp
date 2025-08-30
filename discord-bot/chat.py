@@ -1,7 +1,8 @@
+from common import logger
+
 from langchain_aws import ChatBedrock
 from langchain.chains import RetrievalQA
 import asyncio
-import logging
 import os
 from langchain_core.runnables import (
     RunnableParallel,
@@ -19,7 +20,7 @@ import dotenv
 
 dotenv.load_dotenv()
 
-logger = logging.getLogger(__name__)
+log = logger(__name__)
 
 MODEL_NOVA_PRO = "amazon.nova-pro-v1:0"
 MODEL_CLAUDE_SONNET_4 = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
@@ -72,7 +73,7 @@ def pinecone_retriever(query: str, k: int = 5):
             )
             documents.append(doc)
 
-    logger.info(f"Retriever found {len(documents)} documents")
+    log.info(f"Retriever found {len(documents)} documents")
     return documents
 
 
@@ -156,7 +157,7 @@ Examples of good titles:
                     and i < 3
                 ):
                     wait_time = 2 ** (i + 1)
-                    logger.info(
+                    log.info(
                         "Knowledge base is resuming. Retrying in %s seconds...",
                         wait_time,
                     )
@@ -179,7 +180,7 @@ Examples of good titles:
             title = full_response[title_start:title_end].strip()
         except Exception:
             # Fallback if parsing fails
-            logger.warning("Failed to parse XML output, using fallback title")
+            log.warning("Failed to parse XML output, using fallback title")
             answer = full_response
             # Generate title from first 5 words
             words = full_response.split()[:5]
@@ -188,9 +189,9 @@ Examples of good titles:
         return {"answer": answer, "title": title}
 
     except Exception as e:
-        logger.exception("Error during chat invocation")
+        log.exception("Error during chat invocation")
         return str(e)
 
 
 if __name__ == "__main__":
-    logger.info(asyncio.run(invoke("What is the date of the 2025 athletics carnival?")))
+    log.info(asyncio.run(invoke("What is the date of the 2025 athletics carnival?")))
