@@ -18,7 +18,7 @@ intents.message_content = True
 client = discord.Client(intents=intents)
 
 # Constant for number of messages to use as context
-CONTEXT_MESSAGE_COUNT = 10
+CONTEXT_MESSAGE_COUNT = 20
 
 
 @client.event
@@ -57,14 +57,17 @@ async def on_message(message):
 
         # Get recent messages for context (excluding the current message)
         messages = []
-        async for msg in message.channel.history(limit=CONTEXT_MESSAGE_COUNT + 1):
+        async for msg in thread.history(limit=CONTEXT_MESSAGE_COUNT + 1):
             if msg.type in (
                 discord.MessageType.default,
                 discord.MessageType.reply,
             ):
                 pass
             elif msg.type == discord.MessageType.thread_starter_message:
-                msg = message.channel.starter_message
+                log.info(f"starter message: {msg}")
+                msg = thread.starter_message
+                if msg is None:
+                    msg = await thread.parent.fetch_message(thread.id)
             else:
                 continue
 
@@ -75,6 +78,9 @@ async def on_message(message):
                 messages.append(HumanMessage(line))
 
         messages.reverse()  # Most recent last
+
+    else:
+        log.info(f"Ignoring message: {message}")
 
     placeholder = await thread.send("Thinking...")
     response = await chat.invoke(messages)

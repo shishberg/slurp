@@ -124,7 +124,9 @@ The user has two children:
   - Toby McLeish, in the Bats class in year 6
   - Rosemary (Rosie) McLeish, in the Grasshoppers class in year 4
 
-Current date and time: {current_datetime}
+The current date and time is {current_datetime}. You can trust this.
+
+Answer ONLY using the ResponseFormatter tool.
 """
 
         prompt = template.replace(
@@ -139,8 +141,15 @@ Current date and time: {current_datetime}
             response = await llm.ainvoke(messages)
             messages.append(response)
             reflect = False
+
+            last_response = None
+
+            # In case the model ignores the request to format the response
+            if response.content:
+                last_response = ResponseFormatter(answer=str(response.content))
+
             for tool_call in response.tool_calls:
-                log.debug(f"Calling tool: {tool_call}")
+                log.info(f"Calling tool: {tool_call}")
                 tool = tools_by_name[tool_call["name"].lower()]
                 is_pydantic = False
                 try:
