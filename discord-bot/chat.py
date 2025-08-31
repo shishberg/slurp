@@ -79,9 +79,9 @@ MODEL_CLAUDE_SONNET_4 = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
 REGION = "ap-southeast-2"
 
 base_llm = ChatBedrock(
-    model_id=MODEL_CLAUDE_SONNET_4,
+    model_id=MODEL_NOVA_PRO, # MODEL_CLAUDE_SONNET_4,
     model_kwargs={},
-    streaming=True,
+    streaming=False,
     region_name=REGION,
 )
 
