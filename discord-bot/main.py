@@ -6,6 +6,9 @@ import dotenv
 import os
 import re
 
+from langchain_core.messages import HumanMessage, AIMessage
+
+
 log = logger(__name__)
 
 dotenv.load_dotenv()  # take environment variables
@@ -32,8 +35,8 @@ async def on_message(message):
     # Handle DMs directly
     if isinstance(message.channel, discord.DMChannel):
         # Don't include any recent messages as context for DMs
-        response = await chat.invoke(message.content)
-        await message.channel.send(response["answer"])
+        response = await chat.invoke([message.clean_content])
+        await message.channel.send(response.answer)
         return
 
     # Handle messages in threads created by the bot
@@ -41,23 +44,28 @@ async def on_message(message):
         # Check if this thread was created by our bot
         if message.channel.owner == client.user:
             # Get recent messages for context (excluding the current message)
-            recent_messages = []
+            messages = []
             async for msg in message.channel.history(limit=CONTEXT_MESSAGE_COUNT + 1):
-                if msg.id != message.id:  # Exclude the current message
-                    if msg.type in (
-                        discord.MessageType.default,
-                        discord.MessageType.reply,
-                    ):
-                        content = msg.clean_content
-                    elif msg.type == discord.MessageType.thread_starter_message:
-                        content = message.channel.starter_message.clean_content
-                    else:
-                        continue
-                    recent_messages.append(f"{msg.author}: {content}")
-            recent_messages.reverse()  # Most recent last
+                if msg.type in (
+                    discord.MessageType.default,
+                    discord.MessageType.reply,
+                ):
+                    content = msg.clean_content
+                elif msg.type == discord.MessageType.thread_starter_message:
+                    content = message.channel.starter_message.clean_content
+                else:
+                    continue
 
-            response = await chat.invoke(message.content, recent_messages)
-            await message.channel.send(response["answer"])
+                line = f"{msg.author.name}: {content}"
+                if msg.author.id == client.user.id:
+                    messages.append(AIMessage(line))
+                else:
+                    messages.append(HumanMessage(line))
+
+            messages.reverse()  # Most recent last
+
+            response = await chat.invoke(messages)
+            await message.channel.send(response.answer)
             return
 
     # Handle mentions in channels
@@ -71,13 +79,11 @@ async def on_message(message):
 
         # Send placeholder message
         placeholder = await thread.send("Thinking...")
-
-        msg = re.sub(r"<[^>]*>", "", message.content).strip()
-        response = await chat.invoke(msg)
+        response = await chat.invoke([message.clean_content])
 
         # Update thread title and message content
-        await thread.edit(name=response["title"])
-        await placeholder.edit(content=response["answer"])
+        await thread.edit(name=response.title)
+        await placeholder.edit(content=response.answer)
         return
 
 

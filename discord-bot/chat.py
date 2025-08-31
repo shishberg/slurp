@@ -1,7 +1,6 @@
 from common import logger
 
 from langchain_aws import ChatBedrock
-from langchain.chains import RetrievalQA
 import asyncio
 import os
 from langchain_core.runnables import (
@@ -11,7 +10,10 @@ from langchain_core.runnables import (
 )
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.documents import Document
+from langchain_core.tools import tool
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
+from pydantic import BaseModel, Field
+from typing import Optional
 from datetime import datetime
 from botocore.exceptions import ClientError
 from pinecone import Pinecone
@@ -21,17 +23,6 @@ import dotenv
 dotenv.load_dotenv()
 
 log = logger(__name__)
-
-MODEL_NOVA_PRO = "amazon.nova-pro-v1:0"
-MODEL_CLAUDE_SONNET_4 = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
-REGION = "ap-southeast-2"
-
-llm = ChatBedrock(
-    model_id=MODEL_CLAUDE_SONNET_4,
-    model_kwargs={},
-    streaming=True,
-    region_name=REGION,
-)
 
 # Initialize Pinecone
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
@@ -54,12 +45,14 @@ pc = Pinecone(api_key=PINECONE_API_KEY)
 index = pc.Index(PINECONE_INDEX)
 
 
-def pinecone_retriever(query: str, k: int = 5):
-    """Custom retriever that bypasses broken LangChain conversion"""
+@tool
+def knowledge_base_search(query: str, num_results: int = 5) -> dict:
+    """Searches the knowledge base for results semantically matching the query."""
+    log.info(f'Searching knowledge base query="{query}" k={num_results}')
     query_embedding = embeddings.embed_query(query)
     raw_results = index.query(
         vector=query_embedding,
-        top_k=k,
+        top_k=num_results,
         include_metadata=True,
         namespace=PINECONE_NAMESPACE,
     )
@@ -67,21 +60,51 @@ def pinecone_retriever(query: str, k: int = 5):
     documents = []
     for match in raw_results.matches:
         if match.metadata and "text" in match.metadata:
-            doc = Document(
-                page_content=match.metadata["text"],
-                metadata={k: v for k, v in match.metadata.items() if k != "text"},
-            )
+            doc = match.metadata
             documents.append(doc)
 
     log.info(f"Retriever found {len(documents)} documents")
     return documents
 
 
+class ResponseFormatter(BaseModel):
+    """Response to the user's question."""
+
+    answer: str = Field(description="Answer to the user's question")
+    title: str = Field(description="Title of the chat thread")
+
+
+MODEL_NOVA_PRO = "amazon.nova-pro-v1:0"
+MODEL_CLAUDE_SONNET_4 = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
+REGION = "ap-southeast-2"
+
+base_llm = ChatBedrock(
+    model_id=MODEL_CLAUDE_SONNET_4,
+    model_kwargs={},
+    streaming=True,
+    region_name=REGION,
+)
+
+
+def tool_name(tool) -> str:
+    if hasattr(tool, "name"):
+        return tool.name.lower()
+    return tool.__name__.lower()
+
+
+tools = [knowledge_base_search, ResponseFormatter]
+tools_by_name = {tool_name(tool): tool for tool in tools}
+
+
+llm_with_tools = base_llm.bind_tools(tools)
+llm_without_tools = base_llm.bind_tools([ResponseFormatter])
+
+
 def get_datetime(_):
     return datetime.now().strftime("%A %d %B, %I:%M%p")
 
 
-async def invoke(msg, context_messages=None):
+async def invoke(messages: list[BaseMessage]):
     try:
         template = """
 You are a helpful AI chatbot. Your name is Slurp. You answer parents' questions about correspondence
@@ -89,109 +112,63 @@ with their children's school. If there's something specifically relevant to the 
 their class then draw attention to that, but only if it's specific. Don't mention the children at all
 if the information is general to the school or relevant to all the children.
 
-Answer as succinctly as possible. Every word in the answer should be necessary to convey information.
+Answer as succinctly as possible.
 
-The user has two children:
-    * Toby McLeish, in the Bats class in year 6
-    * Rosemary (Rosie) McLeish, in the Grasshoppers class in year 4
-
-{conversation_history}
-Answer the question using the following documents:
-{context}
-
-Current date and time: {current_datetime}
-
-Question: {question}
-
-Provide your response in this exact format:
-
-<answer>
-[Your full answer here]
-</answer>
-
-<title>
-[3-5 word title summarizing the question or answer]
-</title>
-
+If this is the first message, also return a title for the chat thread, in at most five words.
 Examples of good titles:
 - "Athletics Carnival Date"
 - "Math Homework Policy"
 - "School Uniform Change"
+
+The user has two children:
+  - Toby McLeish, in the Bats class in year 6
+  - Rosemary (Rosie) McLeish, in the Grasshoppers class in year 4
+
+Current date and time: {current_datetime}
 """
 
-        prompt = ChatPromptTemplate.from_template(template)
+        prompt = template.replace(
+            "{current_datetime}", get_datetime(None)
+        )  # TODO: bind
+        messages = [SystemMessage(prompt)] + messages
+        last_response = None
 
-        # Format conversation history
-        conversation_history = (
-            "Previous conversation history:\n" + "\n".join(context_messages) + "\n\n"
-            if context_messages
-            else ""
-        )
-
-        chain = (
-            RunnableParallel(
-                {
-                    "context": RunnableLambda(lambda q: pinecone_retriever(q)),
-                    "question": RunnablePassthrough(),
-                    "current_datetime": RunnableLambda(get_datetime),
-                    "conversation_history": RunnableLambda(
-                        lambda _: conversation_history
-                    ),
-                }
-            )
-            .assign(response=prompt | llm | StrOutputParser())
-            .pick(["response", "context"])
-            .with_retry(stop_after_attempt=3)  # Added retry for parsing failures
-        )
-
-        for i in range(3):
-            try:
-                response = await chain.ainvoke(msg)
-                break
-            except ClientError as e:
-                error_code = e.response["Error"]["Code"]
-                error_message = e.response["Error"]["Message"]
-                if (
-                    error_code == "ValidationException"
-                    and "auto-paused" in error_message
-                    and i < 3
-                ):
-                    wait_time = 2 ** (i + 1)
-                    log.info(
-                        "Knowledge base is resuming. Retrying in %s seconds...",
-                        wait_time,
-                    )
-                    await asyncio.sleep(wait_time)
+        MAX_TOOL_CALLS = 3
+        for i in range(MAX_TOOL_CALLS):
+            llm = llm_with_tools if i < (MAX_TOOL_CALLS - 1) else llm_without_tools
+            response = await llm.ainvoke(messages)
+            messages.append(response)
+            reflect = False
+            for tool_call in response.tool_calls:
+                log.info(f"Calling tool: {tool_call}")
+                tool = tools_by_name[tool_call["name"].lower()]
+                is_pydantic = False
+                try:
+                    is_pydantic = issubclass(tool, BaseModel)
+                except TypeError:
+                    pass
+                if is_pydantic:
+                    tool_result = tool(**tool_call["args"])
+                    last_response = tool_result
                 else:
-                    raise
+                    reflect = True
+                    tool_result = await tool.ainvoke(tool_call)
+                messages.append(tool_result)
+            if not reflect:
+                break
 
-        # Parse the response to extract both answer and title
-        full_response = response["response"]
+        return last_response
 
-        try:
-            # Extract answer from XML tags
-            answer_start = full_response.find("<answer>") + len("<answer>")
-            answer_end = full_response.find("</answer>")
-            answer = full_response[answer_start:answer_end].strip()
-
-            # Extract title from XML tags
-            title_start = full_response.find("<title>") + len("<title>")
-            title_end = full_response.find("</title>")
-            title = full_response[title_start:title_end].strip()
-        except Exception:
-            # Fallback if parsing fails
-            log.warning("Failed to parse XML output, using fallback title")
-            answer = full_response
-            # Generate title from first 5 words
-            words = full_response.split()[:5]
-            title = " ".join(words)
-
-        return {"answer": answer, "title": title}
-
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+        error_message = e.response["Error"]["Message"]
+        if error_code == "ThrottlingException":
+            return ResponseFormatter(answer="⏳ " + error_message)
+        return ResponseFormatter(answer="⚠️ " + error_message, title="")
     except Exception as e:
-        log.exception("Error during chat invocation")
-        return str(e)
+        return ResponseFormatter(answer="⚠️ " + str(e), title="")
 
 
 if __name__ == "__main__":
-    log.info(asyncio.run(invoke("What is the date of the 2025 athletics carnival?")))
+    messages = [HumanMessage("What is the date of the 2025 athletics carnival?")]
+    log.info(asyncio.run(invoke(messages)))
