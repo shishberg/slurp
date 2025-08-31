@@ -82,7 +82,8 @@ async def on_message(message):
         response = await chat.invoke([message.clean_content])
 
         # Update thread title and message content
-        await thread.edit(name=response.title)
+        if response.title:
+            await thread.edit(name=response.title)
         await placeholder.edit(content=response.answer)
         return
 

@@ -71,7 +71,7 @@ class ResponseFormatter(BaseModel):
     """Response to the user's question."""
 
     answer: str = Field(description="Answer to the user's question")
-    title: str = Field(description="Title of the chat thread")
+    title: Optional[str] = Field(description="Title of the chat thread")
 
 
 MODEL_NOVA_PRO = "amazon.nova-pro-v1:0"
@@ -164,9 +164,9 @@ Current date and time: {current_datetime}
         error_message = e.response["Error"]["Message"]
         if error_code == "ThrottlingException":
             return ResponseFormatter(answer="⏳ " + error_message)
-        return ResponseFormatter(answer="⚠️ " + error_message, title="")
+        return ResponseFormatter(answer="⚠️ " + error_message)
     except Exception as e:
-        return ResponseFormatter(answer="⚠️ " + str(e), title="")
+        return ResponseFormatter(answer="⚠️ " + str(e))
 
 
 if __name__ == "__main__":
