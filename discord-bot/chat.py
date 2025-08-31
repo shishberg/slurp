@@ -71,7 +71,7 @@ class ResponseFormatter(BaseModel):
     """Response to the user's question."""
 
     answer: str = Field(description="Answer to the user's question")
-    title: Optional[str] = Field(description="Title of the chat thread")
+    title: Optional[str] = Field(description="Title of the chat thread", default=None)
 
 
 MODEL_NOVA_PRO = "amazon.nova-pro-v1:0"
