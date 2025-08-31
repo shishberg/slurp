@@ -79,7 +79,7 @@ MODEL_CLAUDE_SONNET_4 = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
 REGION = "ap-southeast-2"
 
 base_llm = ChatBedrock(
-    model_id=MODEL_NOVA_PRO, # MODEL_CLAUDE_SONNET_4,
+    model_id=MODEL_NOVA_PRO,  # MODEL_CLAUDE_SONNET_4,
     model_kwargs={},
     streaming=False,
     region_name=REGION,
@@ -140,7 +140,7 @@ Current date and time: {current_datetime}
             messages.append(response)
             reflect = False
             for tool_call in response.tool_calls:
-                log.info(f"Calling tool: {tool_call}")
+                log.debug(f"Calling tool: {tool_call}")
                 tool = tools_by_name[tool_call["name"].lower()]
                 is_pydantic = False
                 try:

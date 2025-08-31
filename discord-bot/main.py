@@ -35,7 +35,7 @@ async def on_message(message):
     # Handle DMs directly
     if isinstance(message.channel, discord.DMChannel):
         # Don't include any recent messages as context for DMs
-        response = await chat.invoke([message.clean_content])
+        response = await chat.invoke([HumanMessage(message.clean_content)])
         await message.channel.send(response.answer)
         return
 
@@ -50,13 +50,13 @@ async def on_message(message):
                     discord.MessageType.default,
                     discord.MessageType.reply,
                 ):
-                    content = msg.clean_content
+                    pass
                 elif msg.type == discord.MessageType.thread_starter_message:
-                    content = message.channel.starter_message.clean_content
+                    msg = message.channel.starter_message
                 else:
                     continue
 
-                line = f"{msg.author.name}: {content}"
+                line = f"{msg.author.name}: {msg.clean_content}"
                 if msg.author.id == client.user.id:
                     messages.append(AIMessage(line))
                 else:
@@ -79,7 +79,7 @@ async def on_message(message):
 
         # Send placeholder message
         placeholder = await thread.send("Thinking...")
-        response = await chat.invoke([message.clean_content])
+        response = await chat.invoke([HumanMessage(message.clean_content)])
 
         # Update thread title and message content
         if response.title:
