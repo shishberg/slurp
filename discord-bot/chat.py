@@ -1,6 +1,6 @@
 from common import logger
 
-from langchain_aws import ChatBedrock
+from langchain_openai import ChatOpenAI
 import asyncio
 import os
 from langchain_core.tools import tool
@@ -8,7 +8,6 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, System
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
-from botocore.exceptions import ClientError
 from pinecone import Pinecone
 from langchain_pinecone import PineconeVectorStore, PineconeEmbeddings
 import dotenv
@@ -67,15 +66,15 @@ class ResponseFormatter(BaseModel):
     title: Optional[str] = Field(description="Title of the chat thread", default=None)
 
 
-MODEL_NOVA_PRO = "amazon.nova-pro-v1:0"
-MODEL_CLAUDE_SONNET_4 = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
-REGION = "ap-southeast-2"
+MODEL_CLAUDE_SONNET_4 = "anthropic/claude-sonnet-4"
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
-base_llm = ChatBedrock(
-    model_id=MODEL_NOVA_PRO,  # MODEL_CLAUDE_SONNET_4,
-    model_kwargs={},
+base_llm = ChatOpenAI(
+    model=MODEL_CLAUDE_SONNET_4,
+    openai_api_key=OPENROUTER_API_KEY,
+    openai_api_base=OPENROUTER_BASE_URL,
     streaming=False,
-    region_name=REGION,
 )
 
 
@@ -161,12 +160,6 @@ Answer ONLY using the ResponseFormatter tool.
 
         return last_response
 
-    except ClientError as e:
-        error_code = e.response["Error"]["Code"]
-        error_message = e.response["Error"]["Message"]
-        if error_code == "ThrottlingException":
-            return ResponseFormatter(answer="⏳ " + error_message)
-        return ResponseFormatter(answer="⚠️ " + error_message)
     except Exception as e:
         return ResponseFormatter(answer="⚠️ " + str(e))
 
