@@ -67,11 +67,13 @@ class ResponseFormatter(BaseModel):
 
 
 MODEL_CLAUDE_SONNET_4 = "anthropic/claude-sonnet-4"
+MODEL_DEEPSEEK_3_1 = "deepseek/deepseek-chat-v3.1"
+MODEL_KIMI_K2 = "moonshotai/kimi-k2-0905"
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
 base_llm = ChatOpenAI(
-    model=MODEL_CLAUDE_SONNET_4,
+    model=MODEL_KIMI_K2, # MODEL_DEEPSEEK_3_1, # MODEL_CLAUDE_SONNET_4,
     openai_api_key=OPENROUTER_API_KEY,
     openai_api_base=OPENROUTER_BASE_URL,
     streaming=False,
@@ -116,7 +118,12 @@ The user has two children:
   - Toby McLeish, in the Bats class in year 6
   - Rosemary (Rosie) McLeish, in the Grasshoppers class in year 4
 
-The current date and time is {current_datetime}. You can trust this.
+The current date and time is {current_datetime}.
+When searching the knowledge base, convert implicit dates or ranges of dates into explicit months and
+dates. For example:
+- "What's on tomorrow?" -> "events February 16"
+- "Tell me what's coming up this week" -> "events May 7 8 9 10 11"
+- "When is the next assembly?" -> "school assembly July August"
 
 Answer ONLY using the ResponseFormatter tool.
 """
@@ -131,6 +138,7 @@ Answer ONLY using the ResponseFormatter tool.
         for i in range(MAX_TOOL_CALLS):
             llm = llm_with_tools if i < (MAX_TOOL_CALLS - 1) else llm_without_tools
             response = await llm.ainvoke(messages)
+            log.info(response)
             messages.append(response)
             reflect = False
 
