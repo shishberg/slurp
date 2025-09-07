@@ -1,21 +1,25 @@
 from common import logger
 from cache import DiskCache
 
-from langchain_aws import ChatBedrock
+from langchain_openai import ChatOpenAI
 from ratelimit import limits
 import dotenv
+import os
 
 dotenv.load_dotenv()
 
 log = logger(__name__)
 
-MODEL_CLAUDE_4_SONNET = "apac.anthropic.claude-sonnet-4-20250514-v1:0"
 from langchain_core.messages import HumanMessage, SystemMessage
 
-llm = ChatBedrock(
-    provider="anthropic",
-    model_id=MODEL_CLAUDE_4_SONNET,
-    model_kwargs={},
+MODEL_CLAUDE_SONNET_4 = "anthropic/claude-sonnet-4"
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+
+llm = ChatOpenAI(
+    model=MODEL_CLAUDE_SONNET_4,
+    openai_api_key=OPENROUTER_API_KEY,
+    openai_api_base=OPENROUTER_BASE_URL,
     streaming=False,
 )
 

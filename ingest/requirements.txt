@@ -24,6 +24,7 @@ jsonpatch==1.33
 jsonpointer==3.0.0
 langchain-aws==0.2.30
 langchain-core==0.3.74
+langchain-openai==0.3.32
 langchain-text-splitters==0.3.9
 langsmith==0.4.13
 mail-parser==4.1.4
