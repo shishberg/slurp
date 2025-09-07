@@ -50,12 +50,13 @@ class SQSListener:
                 summaries.append(summary)
 
             summary = "\n\n".join(summaries)
+            subject = mail.parts[0].subject
 
             # TODO: reply to individual forwarded emails?
             send_email.send_email(
                 sender=os.getenv("EMAIL_SENDER"),
                 recipient=os.getenv("EMAIL_RECIPIENT"),
-                subject=f"Re: {mail.subject}",
+                subject=f"Re: {subject}",
                 body=summary,
                 original_message_id=mail.original_message_id,
             )
