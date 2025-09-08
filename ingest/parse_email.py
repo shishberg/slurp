@@ -114,7 +114,6 @@ class EmailPart:
 
 class EmailContents:
     original_message_id: str
-    labels: List[str]
     parts: List[EmailPart]
 
     def __init__(self):
@@ -128,9 +127,7 @@ def parse(content: str) -> EmailContents:
 
     # Extract original message ID for reply threading
     result.original_message_id = get_original_message_id(mail)
-    result.labels = list(recipient_labels(mail))
     log.info(f"Processing email with original message ID: {result.original_message_id}")
-    log.info(f"Labels: {', '.join(result.labels)}")
 
     for part in _walk_email(mail):
         if part.from_() == os.getenv("EMAIL_SENDER"):
@@ -194,8 +191,8 @@ def get_original_message_id(mail: EmailMessage):
     return mail.get("x-forwarded-message-id") or mail.get("message-id")
 
 
-def recipient_labels(mail: EmailMessage):
-    for recipient in mail.get_all("to"):
+def recipient_labels(recipients: List[str]):
+    for recipient in recipients:
         _, email_address = parseaddr(recipient)
         local_part = email_address.split("@")[0]
         labels = local_part.split("+")[1:]  # Skip the username part

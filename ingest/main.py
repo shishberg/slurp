@@ -25,22 +25,24 @@ class SQSListener:
         self.sqs = boto3.client("sqs", region_name=region_name)
 
     def process_message(self, payload):
-        body = json.loads(payload["Body"], object_hook=lambda d: SimpleNamespace(**d))
-        msg = json.loads(body.Message, object_hook=lambda d: SimpleNamespace(**d))
-        raw_email = base64.b64decode(msg.content)
+        body = json.loads(payload["Body"])
+        msg = json.loads(body["Message"])
+        raw_email = base64.b64decode(msg["content"])
         mail = parse_email.parse(raw_email.decode("utf-8"))
 
+        labels = list(msg["receipt"]["recipients"])
+
         log.info(f"Original message ID: {mail.original_message_id}")
-        log.info(f"Labels: {mail.labels}")
+        log.info(f"Labels: {labels}")
 
         # Conditional S3 upload based on 'forget' label
-        if "forget" not in mail.labels:
+        if "forget" not in labels:
             for part in mail.parts:
                 kb.upload_to_s3(part.subject, part.content)
                 kb.upload_to_pinecone(part.subject, part.content)
 
         # Conditional summary creation and email reply based on 'summary' label
-        if "summary" in mail.labels:
+        if "summary" in labels:
             summaries = []
             for part in mail.parts:
                 summary = llm.summarise(part.content)
