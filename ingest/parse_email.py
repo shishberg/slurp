@@ -193,7 +193,11 @@ def get_original_message_id(mail: EmailMessage):
 
 def recipient_labels(recipients: List[str]):
     for recipient in recipients:
+        # Assume recipient is of the form "Name <email@domain.com>"
         _, email_address = parseaddr(recipient)
+        if not email_address:
+            # Try again assuming recipient is of the form "email@domain.com"
+            email_address = recipient
         local_part = email_address.split("@")[0]
         labels = local_part.split("+")[1:]  # Skip the username part
         yield from (label.strip().lower() for label in labels if label.strip())

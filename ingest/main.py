@@ -30,7 +30,7 @@ class SQSListener:
         raw_email = base64.b64decode(msg["content"])
         mail = parse_email.parse(raw_email.decode("utf-8"))
 
-        labels = list(msg["receipt"]["recipients"])
+        labels = list(parse_email.recipient_labels(msg["receipt"]["recipients"]))
 
         log.info(f"Original message ID: {mail.original_message_id}")
         log.info(f"Labels: {labels}")
