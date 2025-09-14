@@ -11,6 +11,23 @@ import uuid
 import re
 
 
+def _to_html(tag: str, content: str, attributes: dict = {}, indent: int = 0) -> str:
+    """Generates an HTML element."""
+    attrs = " ".join(f'{key}="{value}"' for key, value in attributes.items())
+    if attrs:
+        attrs = " " + attrs
+    indent_str = "  " * indent
+
+    if not tag in ("h1", "h2", "p"):
+        # Indent each line of the content
+        content = "\n".join(f"  {line}" for line in content.splitlines())
+        content = f"\n{content}\n{indent_str}"
+    else:
+        content = content.strip()
+
+    return f"{indent_str}<{tag}{attrs}>{content}</{tag}>"
+
+
 @dataclass
 class ContentElement:
     """Represents a piece of content in the document."""
@@ -21,14 +38,13 @@ class ContentElement:
 
     def to_html(self) -> str:
         if self.type == "ul":
-            # Simple list splitting, assuming lines are list items
             items = "\n".join(
-                f"    <li>{item.strip()}</li>"
+                _to_html("li", item.strip())
                 for item in self.text.split("\n")
                 if item.strip()
             )
-            return f"  <ul>\n{items}\n  </ul>"
-        return f"  <{self.type}>{self.text}</{self.type}>"
+            return _to_html("ul", items)
+        return _to_html(self.type, self.text)
 
     def size(self) -> int:
         return len(self.text)
@@ -47,13 +63,11 @@ class Section:
 
     def to_html(self) -> str:
         """Converts the section to an HTML string."""
+        heading = _to_html(f"h{self.level}", self.title)
         content_html = "\n".join(elem.to_html() for elem in self.content)
         children_html = "\n".join(child.to_html() for child in self.children)
-        return f"""<div id=\"{self.section_id}\">
-  <h{self.level}>{self.title}</h{self.level}>
-{content_html}
-{children_html}
-</div>"""
+        inner_html = "\n".join(filter(None, [heading, content_html, children_html]))
+        return _to_html("div", inner_html, {"id": self.section_id})
 
     def size(self) -> int:
         if self._size == 0:
@@ -67,7 +81,7 @@ class Section:
 
 def build_document_tree(document: Document) -> Section:
     """Builds a hierarchical tree of sections from a Textractor Document."""
-    root = Section(section_id=str(uuid.uuid4()), title="Document", level=0)
+    root = Section(section_id="fooid", title="Document", level=0)
     section_stack = [root]
 
     for layout_element in document.layouts:
