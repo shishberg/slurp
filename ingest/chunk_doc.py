@@ -131,47 +131,40 @@ def _chunk_section(section: Section, size_hint: int) -> Generator[Section, None,
 
     def _yield_chunk():
         nonlocal current_chunk_content, current_chunk_children, current_chunk_size
-        yield Section(
-            section.section_id,
-            section.title,
-            section.level,
-            current_chunk_content,
-            current_chunk_children,
-        )
+        if current_chunk_content or current_chunk_children:
+            yield Section(
+                section.section_id,
+                section.title,
+                section.level,
+                current_chunk_content,
+                current_chunk_children,
+            )
         current_chunk_content = []
         current_chunk_children = []
         current_chunk_size = len(section.title)
 
     for content_element in section.content:
-        if (
-            current_chunk_size + content_element.size() > size_hint
-            and current_chunk_size > len(section.title)
-        ):
+        if current_chunk_size + content_element.size() > size_hint:
             yield from _yield_chunk()
         current_chunk_content.append(content_element)
         current_chunk_size += content_element.size()
 
     for child_section in section.children:
-        if (
-            current_chunk_size + child_section.size() > size_hint
-            and current_chunk_size > len(section.title)
-        ):
+        if current_chunk_size + child_section.size() > size_hint:
             yield from _yield_chunk()
 
         if child_section.size() > size_hint:
-            if current_chunk_content or current_chunk_children:
-                yield from _yield_chunk()
+            yield from _yield_chunk()
             yield from _chunk_section(child_section, size_hint)
         else:
             current_chunk_children.append(child_section)
             current_chunk_size += child_section.size()
 
-    if current_chunk_content or current_chunk_children:
-        yield from _yield_chunk()
+    yield from _yield_chunk()
 
 
 def to_markdown_chunks(
-    document: Document, size_hint: int = 2000
+    document: Document, size_hint: int = 10000
 ) -> Generator[str, None, None]:
     """
     Generates structured markdown chunks from a Textractor Document.
