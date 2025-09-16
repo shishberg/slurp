@@ -4,11 +4,18 @@ from textractor.entities.layout import (
     LAYOUT_SECTION_HEADER,
     LAYOUT_LIST,
     LAYOUT_TEXT,
+    LAYOUT_FIGURE,
+    LAYOUT_TABLE,
 )
 from dataclasses import dataclass, field
 from typing import List, Generator
-import uuid
-import re
+
+LAYOUT_TYPE_TAG = {
+    LAYOUT_TEXT: "p",
+    LAYOUT_LIST: "ul",
+    LAYOUT_FIGURE: "img",
+    LAYOUT_TABLE: "table",
+}
 
 
 def _to_html(tag: str, content: str, attributes: dict = {}, indent: int = 0) -> str:
@@ -18,7 +25,7 @@ def _to_html(tag: str, content: str, attributes: dict = {}, indent: int = 0) -> 
         attrs = " " + attrs
     indent_str = "  " * indent
 
-    if not tag in ("h1", "h2", "p"):
+    if not tag in ("h1", "h2", "p", "li", "img", "td"):
         # Indent each line of the content
         content = "\n".join(f"  {line}" for line in content.splitlines())
         content = f"\n{content}\n{indent_str}"
@@ -44,6 +51,17 @@ class ContentElement:
                 if item.strip()
             )
             return _to_html("ul", items)
+        elif self.type == "table":
+            # Convert tab-separated content to HTML table
+            rows = []
+            for line in self.text.strip().split("\n"):
+                cells = []
+                for cell_content in line.split("\t"):
+                    cells.append(_to_html("td", cell_content.strip()))
+                rows.append(_to_html("tr", "\n".join(cells)))
+
+            table_content = "\n".join(rows)
+            return _to_html("table", table_content)
         return _to_html(self.type, self.text)
 
     def size(self) -> int:
@@ -104,10 +122,8 @@ def build_document_tree(document: Document) -> Section:
             section_stack[-1].children.append(new_section)
             section_stack.append(new_section)
 
-        elif layout_element.layout_type in [LAYOUT_TEXT, LAYOUT_LIST]:
-            content_type = "p"
-            if layout_element.layout_type == LAYOUT_LIST:
-                content_type = "ul"
+        elif layout_element.layout_type in LAYOUT_TYPE_TAG:
+            content_type = LAYOUT_TYPE_TAG[layout_element.layout_type]
 
             section_stack[-1].content.append(
                 ContentElement(
@@ -177,9 +193,33 @@ def to_markdown_chunks(
         str: HTML-formatted chunks of the document.
     """
     document_tree = build_document_tree(document)
+    all_chunks = []
     for section in document_tree.children:
-        for chunk in _chunk_section(section, size_hint):
-            yield chunk.to_html()
+        all_chunks.extend(list(_chunk_section(section, size_hint)))
+
+    if not all_chunks:
+        return
+
+    merged_chunks = [all_chunks[0]]
+
+    for current_chunk in all_chunks[1:]:
+        previous_chunk = merged_chunks[-1]
+        if (
+            previous_chunk.title == current_chunk.title
+            and previous_chunk.size() + current_chunk.size() <= size_hint
+        ):
+            # Merge
+            previous_chunk.content.extend(current_chunk.content)
+            previous_chunk.children.extend(current_chunk.children)
+            # The size of previous_chunk needs to be updated.
+            # The size() method calculates it on the fly if _size is 0.
+            # Let's reset it.
+            previous_chunk._size = 0
+        else:
+            merged_chunks.append(current_chunk)
+
+    for chunk in merged_chunks:
+        yield chunk.to_html()
 
 
 if __name__ == "__main__":
@@ -192,6 +232,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     document = Document.open(sys.argv[1])
+    # print(document.to_html())
 
     for chunk in to_markdown_chunks(document):
         print(chunk)
