@@ -8,6 +8,7 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, System
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from pinecone import Pinecone
 from langchain_pinecone import PineconeVectorStore, PineconeEmbeddings
 import dotenv
@@ -93,9 +94,11 @@ tools_by_name = {tool_name(tool): tool for tool in tools}
 llm_with_tools = base_llm.bind_tools(tools)
 llm_without_tools = base_llm.bind_tools([ResponseFormatter])
 
+TIMEZONE = ZoneInfo("Australia/Sydney")
+
 
 def get_datetime(_):
-    return datetime.now().strftime("%A %d %B, %I:%M%p")
+    return datetime.now(TIMEZONE).strftime("%A %d %B, %I:%M%p")
 
 
 async def invoke(messages: list[BaseMessage]):
