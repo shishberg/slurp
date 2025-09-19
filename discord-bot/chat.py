@@ -60,7 +60,7 @@ def knowledge_base_search(query: str, num_results: int = 5) -> dict:
 
 
 class ResponseFormatter(BaseModel):
-    """Response to the user's question."""
+    """Final response to the user's question after using other tools to fetch relevant information."""
 
     answer: str = Field(description="Answer to the user's question")
     title: Optional[str] = Field(description="Title of the chat thread", default=None)
@@ -73,7 +73,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
 base_llm = ChatOpenAI(
-    model=MODEL_KIMI_K2, # MODEL_DEEPSEEK_3_1, # MODEL_CLAUDE_SONNET_4,
+    model=MODEL_DEEPSEEK_3_1,  # MODEL_KIMI_K2, # MODEL_CLAUDE_SONNET_4,
     openai_api_key=OPENROUTER_API_KEY,
     openai_api_base=OPENROUTER_BASE_URL,
     streaming=False,
@@ -124,8 +124,6 @@ dates. For example:
 - "What's on tomorrow?" -> "events February 16"
 - "Tell me what's coming up this week" -> "events May 7 8 9 10 11"
 - "When is the next assembly?" -> "school assembly July August"
-
-Answer ONLY using the ResponseFormatter tool.
 """
 
         prompt = template.replace(
@@ -163,6 +161,7 @@ Answer ONLY using the ResponseFormatter tool.
                     reflect = True
                     tool_result = await tool.ainvoke(tool_call)
                 messages.append(tool_result)
+
             if not reflect:
                 break
 
