@@ -81,6 +81,7 @@ async def on_message(message):
 
     else:
         log.info(f"Ignoring message: {message}")
+        return
 
     placeholder = await thread.send("Thinking...")
     response = await chat.invoke(messages)
