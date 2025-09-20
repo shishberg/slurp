@@ -1,0 +1,28 @@
+[project]
+name = "discord-bot"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "David McLeish",email = "dave@mcleish.id.au"}
+]
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "discord-py (>=2.6.3,<3.0.0)",
+    "langchain-core (>=0.3.76,<0.4.0)",
+    "langchain-openai (>=0.3.33,<0.4.0)",
+    "langchain-pinecone (>=0.2.12,<0.3.0)",
+    "pinecone (>=7.3.0,<8.0.0)",
+    "pydantic (>=2.11.9,<3.0.0)",
+    "python-dotenv (>=1.1.1,<2.0.0)",
+    "slurp-common @ ../common"
+]
+
+[tool.poetry]
+packages = [{include = "discord_bot", from = "src"}]
+
+[tool.poetry.dependencies]
+slurp-common = {develop = true}
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
