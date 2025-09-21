@@ -1,0 +1,28 @@
+# fly.toml app configuration file generated for slurp-school-discord-bot on 2025-09-21T12:22:20+10:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'slurp-school-discord-bot'
+primary_region = 'syd'
+
+[build]
+  dockerfile = "Dockerfile.discord-bot"
+
+#[http_service]
+#  internal_port = 8080
+#  force_https = true
+#  auto_stop_machines = 'stop'
+#  auto_start_machines = true
+#  min_machines_running = 0
+#  processes = ['app']
+
+[env]
+  AWS_DEFAULT_REGION = "ap-southeast-2"
+  PINECONE_INDEX = "slurp"
+  PINECONE_NAMESPACE = "slurp"
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1

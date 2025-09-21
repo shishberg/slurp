@@ -1,0 +1,22 @@
+FROM python:3.13-slim AS builder
+
+ENV PYTHONUNBUFFERED=1 \ 
+    PYTHONDONTWRITEBYTECODE=1 
+
+RUN pip install poetry && poetry config virtualenvs.in-project true
+
+COPY discord-bot/pyproject.toml discord-bot/poetry.lock /app/discord-bot/
+COPY common/ /app/common
+
+WORKDIR /app/discord-bot
+RUN poetry install --only=main
+
+
+FROM python:3.13-slim
+
+COPY --from=builder /app /app
+COPY discord-bot/src/ /app/discord-bot/src
+
+WORKDIR /app/discord-bot
+
+CMD [".venv/bin/python", "src/main.py"]
