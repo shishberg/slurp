@@ -91,8 +91,8 @@ tools = [knowledge_base_search, ResponseFormatter]
 tools_by_name = {tool_name(tool): tool for tool in tools}
 
 
-llm_with_tools = base_llm.bind_tools(tools)
-llm_without_tools = base_llm.bind_tools([ResponseFormatter])
+llm_with_tools = base_llm.bind_tools(tools, strict=True)
+llm_without_tools = base_llm.bind_tools([ResponseFormatter], strict=True)
 
 TIMEZONE = ZoneInfo("Australia/Sydney")
 
@@ -151,7 +151,17 @@ dates. For example:
 
             for tool_call in response.tool_calls:
                 log.info(f"Calling tool: {tool_call}")
-                tool = tools_by_name[tool_call["name"].lower()]
+                try:
+                    tool = tools_by_name[tool_call["name"].lower()]
+                except KeyError:
+                    # Infer tool name because DeepSeek just leaves it out sometimes
+                    args = tool_call["args"]
+                    if 'query' in args and 'answer' not in args:
+                        tool = knowledge_base_search
+                    elif 'answer' in args:
+                        tool = ResponseFormatter
+                    else:
+                        raise ValueError(f"tool_call does not match a tool: {tool_call}")
                 is_pydantic = False
                 try:
                     is_pydantic = issubclass(tool, BaseModel)
