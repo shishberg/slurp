@@ -6,7 +6,7 @@ import os
 from langchain_core.tools import tool
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import AsyncGenerator, Optional
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pinecone import Pinecone
@@ -101,7 +101,7 @@ def get_datetime(_):
     return datetime.now(TIMEZONE).strftime("%A %d %B, %I:%M%p")
 
 
-async def invoke(messages: list[BaseMessage]):
+async def invoke(messages: list[BaseMessage]) -> AsyncGenerator[ResponseFormatter]:
     try:
         template = """
 You are a helpful AI chatbot. Your name is Slurp. You answer parents' questions about correspondence
@@ -133,7 +133,6 @@ dates. For example:
             "{current_datetime}", get_datetime(None)
         )  # TODO: bind
         messages = [SystemMessage(prompt)] + messages
-        last_response = None
 
         MAX_TOOL_CALLS = 3
         for i in range(MAX_TOOL_CALLS):
@@ -143,45 +142,48 @@ dates. For example:
             messages.append(response)
             reflect = False
 
-            last_response = None
-
-            # In case the model ignores the request to format the response
             if response.content:
-                last_response = ResponseFormatter(answer=str(response.content))
+                yield ResponseFormatter(answer=str(response.content))
 
             for tool_call in response.tool_calls:
                 log.info(f"Calling tool: {tool_call}")
+                args = tool_call["args"]
                 try:
                     tool = tools_by_name[tool_call["name"].lower()]
                 except KeyError:
                     # Infer tool name because DeepSeek just leaves it out sometimes
-                    args = tool_call["args"]
-                    if 'query' in args and 'answer' not in args:
+                    if "query" in args and "answer" not in args:
                         tool = knowledge_base_search
-                    elif 'answer' in args:
+                    elif "answer" in args:
                         tool = ResponseFormatter
                     else:
-                        raise ValueError(f"tool_call does not match a tool: {tool_call}")
+                        raise ValueError(
+                            f"tool_call does not match a tool: {tool_call}"
+                        )
                 is_pydantic = False
                 try:
                     is_pydantic = issubclass(tool, BaseModel)
                 except TypeError:
                     pass
                 if is_pydantic:
-                    tool_result = tool(**tool_call["args"])
-                    last_response = tool_result
+                    tool_result = tool(**args)
+                    yield tool_result
                 else:
-                    reflect = True
+                    args
+                    if "query" in args:
+                        query = args["query"]
+                        yield ResponseFormatter(
+                            answer=f'🔍 *Searching for "{query}"...*'
+                        )
                     tool_result = await tool.ainvoke(tool_call)
+                    reflect = True
                 messages.append(tool_result)
 
             if not reflect:
                 break
 
-        return last_response
-
     except Exception as e:
-        return ResponseFormatter(answer="⚠️ " + str(e))
+        yield ResponseFormatter(answer="⚠️ " + str(e))
 
 
 if __name__ == "__main__":

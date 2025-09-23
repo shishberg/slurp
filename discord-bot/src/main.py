@@ -83,13 +83,11 @@ async def on_message(message):
         log.info(f"Ignoring message: {message}")
         return
 
-    placeholder = await thread.send("Thinking...")
-    response = await chat.invoke(messages)
-
-    # Update thread title and message content
-    await placeholder.edit(content=response.answer)
-    if response.title:
-        await thread.edit(name=response.title)
+    async for response in chat.invoke(messages):
+        if response.title:
+            await thread.edit(name=response.title)
+        if response.answer:
+            await thread.send(response.answer)
 
 
 if __name__ == "__main__":
