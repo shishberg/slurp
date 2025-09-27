@@ -1,4 +1,4 @@
-import chat
+from chat import create_chat_instance
 from common import logger, log_formatter
 
 import discord
@@ -83,11 +83,16 @@ async def on_message(message):
         log.info(f"Ignoring message: {message}")
         return
 
-    async for response in chat.invoke(messages):
+    chat_instance = create_chat_instance()
+    async for response in chat_instance.invoke(messages):
         if response.title:
-            await thread.edit(name=response.title)
+            title = response.title.strip()
+            if title:
+                await thread.edit(name=response.title)
         if response.answer:
-            await thread.send(response.answer)
+            answer = response.answer.strip()
+            if answer:
+                await thread.send(response.answer)
 
 
 if __name__ == "__main__":
