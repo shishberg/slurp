@@ -1,4 +1,4 @@
-from chat import create_chat_instance
+from chat import default_chat
 from common import logger, log_formatter
 
 import discord
@@ -83,7 +83,7 @@ async def on_message(message):
         log.info(f"Ignoring message: {message}")
         return
 
-    chat_instance = create_chat_instance()
+    chat_instance = default_chat()
     async for response in chat_instance.invoke(messages):
         if response.title:
             title = response.title.strip()

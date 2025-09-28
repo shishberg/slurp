@@ -8,7 +8,6 @@ import boto3
 import os
 import time
 import json
-from types import SimpleNamespace
 import base64
 import traceback
 import dotenv

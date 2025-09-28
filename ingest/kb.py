@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timezone
 from common import logger
 from pinecone import Pinecone
-from langchain_core.documents import Document
+from langchain_pinecone import PineconeVectorStore
 from langchain_text_splitters import (
     MarkdownTextSplitter,
     ExperimentalMarkdownSyntaxTextSplitter,
@@ -57,39 +57,26 @@ def upload_to_s3(subject: str, content: str) -> str:
         return False
 
 
-def chunk_markdown(md: str) -> list[Document]:
-    """Split text into chunks of specified size."""
-    # splitter = ExperimentalMarkdownSyntaxTextSplitter()
-    splitter = MarkdownTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=100,
-    )
-    # return splitter.split_text(md)
-    return splitter.create_documents(
-        [md],
-    )
-
-
-def upload_to_pinecone(filename: str, md: str, metadata: dict[str, str] = None):
+def upload_to_pinecone(
+    filename: str,
+    md: str,
+    embedding_model,
+    chunking_function,
+    metadata: dict[str, str] = None,
+):
     """Upload markdown content to Pinecone index."""
     if metadata is None:
         metadata = {}
-    fileID = sanitize_filename(filename)
 
-    chunks = chunk_markdown(md)
+    docs = chunking_function.create_documents([md], metadatas=[metadata])
 
-    records = [
-        {
-            "_id": f"{fileID}#{i}",
-            "text": chunk.page_content,
-        }
-        | chunk.metadata
-        | metadata
-        for i, chunk in enumerate(chunks)
-    ]
-
-    index.upsert_records(PINECONE_NAMESPACE, records)
-    log.info(f"Uploaded {len(records)} records to Pinecone index")
+    vectorstore = PineconeVectorStore(
+        index_name=os.getenv("PINECONE_INDEX"),
+        embedding=embedding_model,
+        namespace=PINECONE_NAMESPACE,
+    )
+    vectorstore.add_documents(docs)
+    log.info(f"Uploaded {len(docs)} documents to Pinecone index")
 
 
 if __name__ == "__main__":

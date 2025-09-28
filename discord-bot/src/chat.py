@@ -113,14 +113,10 @@ class Chat:
             yield ResponseFormatter(answer="⚠️ " + str(e))
 
 
-def create_chat_instance():
+def create_knowledge_base_tool(embeddings):
     PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
     PINECONE_NAMESPACE = os.getenv("PINECONE_NAMESPACE", "slurp")
     PINECONE_INDEX = os.getenv("PINECONE_INDEX")
-
-    embeddings = PineconeEmbeddings(
-        model="llama-text-embed-v2",
-    )
 
     pc = Pinecone(api_key=PINECONE_API_KEY)
     index = pc.Index(PINECONE_INDEX)
@@ -146,6 +142,10 @@ def create_chat_instance():
         log.info(f"Retriever found {len(documents)} documents")
         return documents
 
+    return knowledge_base_search
+
+
+def default_chat() -> Chat:
     MODEL_CLAUDE_SONNET_4 = "anthropic/claude-sonnet-4"
     MODEL_DEEPSEEK_3_1 = "deepseek/deepseek-chat-v3.1"
     MODEL_KIMI_K2 = "moonshotai/kimi-k2-0905"
@@ -187,18 +187,21 @@ dates. For example:
 - "When is the next assembly?" -> "school assembly July August"
 """
 
-    chat = Chat(
-        llm=base_llm,
-        system_prompt_template=system_prompt_template,
-        knowledge_base_tool=knowledge_base_search,
+    embeddings = PineconeEmbeddings(
+        model="llama-text-embed-v2",
     )
 
-    return chat
+    return Chat(
+        llm=base_llm,
+        system_prompt_template=system_prompt_template,
+        knowledge_base_tool=create_knowledge_base_tool(embeddings),
+    )
 
 
 if __name__ == "__main__":
-    chat = create_chat_instance()
     messages = [HumanMessage("What is the date of the 2025 athletics carnival?")]
+
+    chat = default_chat()
 
     async def main():
         async for response in chat.invoke(messages):
