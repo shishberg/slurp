@@ -5,18 +5,20 @@ ENV PYTHONUNBUFFERED=1 \
 
 RUN pip install poetry && poetry config virtualenvs.in-project true
 
-COPY discord-bot/pyproject.toml discord-bot/poetry.lock /app/discord-bot/
+COPY pyproject.toml poetry.lock /app/
 COPY common/ /app/common
+COPY discord-bot/ /app/discord-bot
 
-WORKDIR /app/discord-bot
-RUN poetry install --only=main
+WORKDIR /app
+RUN poetry install --extras discord-bot
 
 
 FROM python:3.13-slim
 
 COPY --from=builder /app /app
-COPY discord-bot/src/ /app/discord-bot/src
 
-WORKDIR /app/discord-bot
+WORKDIR /app
 
-CMD [".venv/bin/python", "src/main.py"]
+ENV PYTHONPATH=/app
+
+CMD [".venv/bin/python", "discord-bot/main.py"]
