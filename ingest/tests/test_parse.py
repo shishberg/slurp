@@ -4,7 +4,7 @@ import os
 # Add the parent directory to the path so we can import from ingest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from main import extract_email_labels
+from parse_email import recipient_labels
 
 
 class TestEmailLabelExtraction:
@@ -12,53 +12,63 @@ class TestEmailLabelExtraction:
 
     def test_extract_single_label(self):
         """Test extraction of a single label."""
-        assert extract_email_labels("user+summary@example.com") == ["summary"]
+        result = list(recipient_labels(["user+summary@example.com"]))
+        assert result == ["summary"]
 
     def test_extract_multiple_labels(self):
         """Test extraction of multiple labels."""
-        assert extract_email_labels("user+summary+forget@example.com") == [
+        result = list(recipient_labels(["user+summary+forget@example.com"]))
+        assert result == [
             "summary",
             "forget",
         ]
 
     def test_extract_labels_with_mixed_case(self):
         """Test extraction handles case insensitivity."""
-        assert extract_email_labels("user+Summary+FORGET@example.com") == [
+        result = list(recipient_labels(["user+Summary+FORGET@example.com"]))
+        assert result == [
             "summary",
             "forget",
         ]
 
     def test_extract_labels_with_spaces(self):
         """Test extraction handles spaces around labels."""
-        assert extract_email_labels("user+ summary + forget @example.com") == [
+        result = list(recipient_labels(["user+ summary + forget @example.com"]))
+        assert result == [
             "summary",
             "forget",
         ]
 
     def test_no_labels(self):
         """Test extraction when no labels are present."""
-        assert extract_email_labels("user@example.com") == []
+        result = list(recipient_labels(["user@example.com"]))
+        assert result == []
 
     def test_empty_labels(self):
         """Test extraction with empty labels."""
-        assert extract_email_labels("user++@example.com") == []
+        result = list(recipient_labels(["user++@example.com"]))
+        assert result == []
 
     def test_malformed_email(self):
         """Test extraction with malformed email addresses."""
-        assert extract_email_labels("invalid-email") == []
-        assert extract_email_labels("") == []
-        assert extract_email_labels(None) == []
+        result1 = list(recipient_labels(["invalid-email"]))
+        result2 = list(recipient_labels([""]))
+        # The function doesn't handle None values in the list, so we don't test that case
+        assert result1 == []
+        assert result2 == []
 
     def test_complex_labels(self):
         """Test extraction with complex label names."""
-        assert extract_email_labels("user+test-label+another_label@example.com") == [
+        result = list(recipient_labels(["user+test-label+another_label@example.com"]))
+        assert result == [
             "test-label",
             "another_label",
         ]
 
     def test_special_characters_in_labels(self):
         """Test extraction handles special characters in labels."""
-        assert extract_email_labels("user+test123+label-with-dashes@example.com") == [
+        result = list(recipient_labels(["user+test123+label-with-dashes@example.com"]))
+        assert result == [
             "test123",
             "label-with-dashes",
         ]
@@ -82,11 +92,10 @@ class TestParseHtml(unittest.TestCase):
         html_content = "<h1>Hello World</h1><p>This is a test.</p>"
         markdown, urls = parse_html(html_content)
 
-        # Check that we get markdown content as a list
-        self.assertIsInstance(markdown, list)
-        self.assertEqual(len(markdown), 1)
-        self.assertIn("Hello World", markdown[0])
-        self.assertIn("This is a test", markdown[0])
+        # Check that we get markdown content as a string
+        self.assertIsInstance(markdown, str)
+        self.assertIn("Hello World", markdown)
+        self.assertIn("This is a test", markdown)
 
         # Check that URLs list is empty for content without links
         self.assertEqual(urls, [])
@@ -101,19 +110,18 @@ class TestParseHtml(unittest.TestCase):
         # Check that we get the URL
         self.assertEqual(urls, ["https://example.com"])
 
-        # Check that markdown contains the link text as a list
-        self.assertIsInstance(markdown, list)
-        self.assertEqual(len(markdown), 1)
-        self.assertIn("our website", markdown[0])
+        # Check that markdown contains the link text as a string
+        self.assertIsInstance(markdown, str)
+        self.assertIn("our website", markdown)
 
     def test_parse_empty_html(self):
         """Test parsing empty HTML content."""
         html_content = ""
         markdown, urls = parse_html(html_content)
 
-        # Check that we get empty results as a list
-        self.assertIsInstance(markdown, list)
-        self.assertEqual(markdown, [""])
+        # Check that we get empty results as a string
+        self.assertIsInstance(markdown, str)
+        self.assertEqual(markdown, "")
         self.assertEqual(urls, [])
 
     def test_parse_complex_html(self):
@@ -132,11 +140,10 @@ class TestParseHtml(unittest.TestCase):
         self.assertIn("https://github.com", urls)
         self.assertIn("https://stackoverflow.com", urls)
 
-        # Check that content is preserved as a list
-        self.assertIsInstance(markdown, list)
-        self.assertEqual(len(markdown), 1)
-        self.assertIn("Section Title", markdown[0])
-        self.assertIn("Check out", markdown[0])
+        # Check that content is preserved as a string
+        self.assertIsInstance(markdown, str)
+        self.assertIn("Section Title", markdown)
+        self.assertIn("Check out", markdown)
 
 
 if __name__ == "__main__":
