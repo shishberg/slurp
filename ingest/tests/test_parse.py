@@ -1,8 +1,6 @@
 import sys
 import os
 
-# Add the parent directory to the path so we can import from ingest
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from parse_email import recipient_labels
 
@@ -78,10 +76,8 @@ import unittest
 import sys
 import os
 
-# Add the parent directory to Python path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from parse_email import parse_html
+from ingest.parse_email import parse_html
 
 
 class TestParseHtml(unittest.TestCase):

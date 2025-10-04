@@ -1,5 +1,5 @@
 import pytest
-from src.chat import Chat, tool_name, ResponseFormatter
+from chat import Chat, tool_name, ResponseFormatter
 from pydantic import BaseModel
 from unittest.mock import MagicMock, AsyncMock
 from langchain_core.messages import HumanMessage, AIMessage
