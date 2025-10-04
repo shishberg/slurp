@@ -1,0 +1,67 @@
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "slurp"
+version = "0.1.0"
+description = "Consolidated Python project for slurp services"
+authors = ["David McLeish <dave@mcleish.id.au>"]
+readme = "README.md"
+package-mode = false
+packages = [
+    { include = "common" },
+    { include = "ingest" },
+    { include = "discord-bot" },
+]
+
+[tool.poetry.dependencies]
+python = ">=3.13,<3.14"
+
+# Common dependencies
+colorlog = "*"
+python-dotenv = ">=1.1.1,<2.0.0"
+
+# Core packages
+discord-py = { version = ">=2.6.3,<3.0.0", optional = true }
+langchain-core = { version = ">=0.3.76,<0.4.0", optional = true }
+langchain-openai = { version = ">=0.3.33,<0.4.0", optional = true }
+langchain-pinecone = { version = ">=0.2.12,<0.3.0", optional = true }
+pinecone = { version = ">=7.3.0,<8.0.0", optional = true }
+pydantic = { version = ">=2.11.9,<3.0.0", optional = true }
+
+# Ingest-specific dependencies
+amazon-textract-textractor = { version = "1.9.2", optional = true }
+boto3 = { version = "1.38.23", optional = true }
+botocore = { version = "1.38.23", optional = true }
+langchain_text_splitters = { version = "0.3.11", optional = true }
+Markdown = { version = "3.9", optional = true }
+markdownify = { version = "1.2.0", optional = true }
+ratelimit = { version = "2.2.1", optional = true }
+unstructured = { version = "0.18.15", optional = true }
+
+[tool.poetry.extras]
+discord-bot = [
+    "discord-py",
+    "langchain-core",
+    "langchain-openai",
+    "langchain-pinecone",
+    "pinecone",
+    "pydantic",
+    "python-dotenv",
+    "ingest"
+]
+ingest = [
+    "amazon-textract-textractor",
+    "boto3",
+    "botocore",
+    "langchain-core",
+    "langchain-openai",
+    "langchain_text_splitters",
+    "Markdown",
+    "markdownify",
+    "pinecone",
+    "python-dotenv",
+    "ratelimit",
+    "unstructured"
+]
